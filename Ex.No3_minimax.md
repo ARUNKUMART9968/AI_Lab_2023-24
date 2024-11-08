@@ -1,6 +1,6 @@
 # Ex.No: 3  Implementation of Minimax Search
-### DATE: 08.10.2024                                                                            
-### REGISTER NUMBER : 212221040017
+### DATE: 26.08.2024                                                                            
+### REGISTER NUMBER : 212222040017
 ### AIM: 
 Write a mini-max search algorithm to find the optimal value of MAX Player from the given graph.
 ### Algorithm:
