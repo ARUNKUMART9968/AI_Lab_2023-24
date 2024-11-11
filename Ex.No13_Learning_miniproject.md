@@ -3,11 +3,11 @@
 ### REGISTER NUMBER : 212222040017
 
 ### AIM:
-To write a program to train a classifier for garbage classification with PyTorch.
+To write a program to train a classifier for peck hour Scheduling
 
 ### Algorithm:
-1. Import necessary libraries (PyTorch, Torchvision, etc.)
-2. Load the dataset of images representing different types of garbage
+1. Import necessary libraries 
+2. Load the dataset 
 3. Define the EfficientNet-B0 model and add a classification head to it
 4. Create data loaders for training and validation sets
 5. Train the model using the Adam optimizer and cross-entropy loss function
@@ -16,93 +16,87 @@ To write a program to train a classifier for garbage classification with PyTorch
 
 ### Program:
 ```python
-import torch
-import torchvision
-from torchvision import datasets, transforms, models
-from torch.utils.data import DataLoader
-import torch.optim as optim
-import torch.nn as nn
-import time
-import os
+import pandas as pd
+import numpy as np
+import random
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error
 
-data_dir = "garbage_classification"
-data_transforms = transforms.Compose([
-    transforms.RandomResizedCrop(224),
-    transforms.RandomHorizontalFlip(),
-    transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-])
+# Seed for reproducibility
+np.random.seed(42)
 
-train_dataset = datasets.ImageFolder(data_dir, transform=data_transforms)
-train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4)
-num_classes = 12
+# Constants
+city = 'Chennai'
+routes = ['Route_1', 'Route_2', 'Route_3', 'Route_4', 'Route_5', 'Route_6']
+peak_types = ['School', 'College', 'Office']
+peak_times = ['Morning_School', 'Morning_Office', 'Afternoon_School', 'Evening_Office']
+non_peak_times = ['Late_Morning', 'Early_Afternoon', 'Night']
+time_of_day = peak_times + non_peak_times
+places = ['T. Nagar', 'Adyar', 'Velachery', 'Guindy', 'Anna Nagar', 'Tambaram', 'Mylapore', 'Vadapalani', 'Kodambakkam', 'Porur']
 
-model = models.efficientnet_b0(pretrained=True)
-model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = model.to(device)
+# Define function to simulate traffic conditions
+def traffic_conditions():
+    return random.choice(['Low', 'Moderate', 'High'])
 
-criterion = nn.CrossEntropyLoss()  
-optimizer = optim.Adam(model.parameters(), lr=1e-4)
+# Define function to simulate passenger demand
+def passenger_demand(time):
+    if time in peak_times:
+        return np.random.randint(80, 200)  # Higher demand during peak times
+    else:
+        return np.random.randint(20, 80)  # Lower demand during non-peak times
 
-# Function to track training progress
-def train_model(model, criterion, optimizer, num_epochs=5):
-    for epoch in range(num_epochs):
-        print(f'Epoch {epoch+1}/{num_epochs}')
-        print('-' * 10)
+# Define function to simulate bus availability (utilization)
+def bus_utilization(demand, traffic):
+    if traffic == 'Low':
+        return demand // 10
+    elif traffic == 'Moderate':
+        return demand // 8
+    else:
+        return demand // 5
 
-        model.train()  # Set model to training mode
-        running_loss = 0.0
-        running_corrects = 0
-        total_samples = 0
-        
-        start_time = time.time()
+# Generate 1000 records with peak hour and non-peak hour data
+data = []
+for i in range(1000):
+    record = {}
+    record['Place'] = random.choice(places)
+    record['Route'] = random.choice(routes)
+    record['Time_of_Day'] = random.choice(time_of_day)
+    record['Peak_Type'] = random.choice(peak_types) if record['Time_of_Day'] in peak_times else 'Non_Peak'
+    record['Passenger_Demand'] = passenger_demand(record['Time_of_Day'])
+    record['Traffic_Conditions'] = traffic_conditions()
+    record['Scheduled_Buses'] = bus_utilization(record['Passenger_Demand'], record['Traffic_Conditions'])
+    data.append(record)
 
-        # Iterate over data in batches
-        for inputs, labels in train_loader:
-            inputs, labels = inputs.to(device), labels.to(device)
+# Create a DataFrame
+df = pd.DataFrame(data)
 
-            # Zero the parameter gradients
-            optimizer.zero_grad()
+# Save the dataset to a CSV file
+df.to_csv('/content/chennai_bus_scheduling_dataset_1000.csv', index=False)
 
-            # Forward pass
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-            _, preds = torch.max(outputs, 1)
+# Display the first 5 rows of the dataset
+print(df.head())
 
-            # Backward pass and optimization
-            loss.backward()
-            optimizer.step()
+# Step 2: Function to search the dataset by place name
+def search_by_place(place_name):
+    # Filter the dataset by the provided place
+    result = df[df['Place'].str.contains(place_name, case=False)]
 
-            # Update statistics
-            running_loss += loss.item() * inputs.size(0)
-            running_corrects += torch.sum(preds == labels.data)
-            total_samples += labels.size(0)
+    if not result.empty:
+        return result[['Place', 'Time_of_Day', 'Peak_Type', 'Passenger_Demand', 'Traffic_Conditions', 'Scheduled_Buses']]
+    else:
+        return f"No data found for the place: {place_name}"
 
-            # Print progress every 100 batches
-            if total_samples % 3200 == 0:
-                batch_loss = running_loss / total_samples
-                batch_acc = running_corrects.double() / total_samples
-                print(f"Progress: {total_samples}/{len(train_dataset)} - Loss: {batch_loss:.4f}, Acc: {batch_acc:.4f}")
-
-        # End of epoch stats
-        epoch_loss = running_loss / len(train_loader.dataset)
-        epoch_acc = running_corrects.double() / len(train_loader.dataset)
-
-        print(f'Epoch {epoch+1} - Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
-        print(f'Time for epoch {epoch+1}: {time.time() - start_time:.2f} seconds\n')
-
-    return model
-
-
-model = train_model(model, criterion, optimizer, num_epochs=10)
-torch.save(model.state_dict,"garbage_classifier")
+# Step 3: Search based on user input
+user_input = input("Enter the place name to search (e.g., Velachery, T. Nagar): ")
+search_result = search_by_place(user_input)
+print(search_result)
 ```
 
 
 ### Output:
+![image](https://github.com/user-attachments/assets/8277911d-b988-40ad-a044-111451f3be38)
 
-![image](https://github.com/user-attachments/assets/732febf2-7f8c-4f63-a35d-32c1af2cd8d4)<br>
 The Model reached an accuracy of 97.5% after 10 epochs against the test dataset.
 
 
